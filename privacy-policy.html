@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KodeView – Privacy Policy</title>
+</head>
+<body>
+
+  <h1>KodeView Privacy Policy</h1>
+  <p><strong>Effective date:</strong> June 10, 2026 &nbsp;&bull;&nbsp; Version 1.0</p>
+  <hr>
+
+  <h2>Table of Contents</h2>
+  <ol>
+    <li><a href="#introduction">Introduction</a></li>
+    <li><a href="#no-collection">Information We Do Not Collect</a></li>
+    <li><a href="#on-device">Information Handled on Your Device</a></li>
+    <li><a href="#github">Information Sent to GitHub</a></li>
+    <li><a href="#permissions">App Permissions</a></li>
+    <li><a href="#retention">Data Retention and Deletion</a></li>
+    <li><a href="#security">Security</a></li>
+    <li><a href="#third-parties">Third-Party Services</a></li>
+    <li><a href="#children">Children's Privacy</a></li>
+    <li><a href="#your-rights">Your Rights</a></li>
+    <li><a href="#changes">Changes to This Policy</a></li>
+    <li><a href="#contact">Contact Us</a></li>
+  </ol>
+
+  <hr>
+
+  <h2 id="introduction">1. Introduction</h2>
+  <p>
+    KodeView ("the App," "we," "our," "us") is an offline code viewer for public GitHub repositories,
+    available on Android and iOS. This Privacy Policy describes how the App handles information when
+    you install and use it.
+  </p>
+  <p>
+    KodeView is designed with a minimal data footprint. We do not operate our own servers, we do not
+    create user accounts, and we do not track you. The only external service the App communicates
+    with is GitHub's public API, and only on your explicit instruction (e.g. when you search for or
+    download a repository).
+  </p>
+  <p>
+    This Privacy Policy explains how KodeView handles information when you use the app. If you do not
+    agree, please uninstall the App. This policy should be read alongside
+    <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener noreferrer">
+      GitHub's Privacy Statement
+    </a>,
+    which governs any traffic the App sends to GitHub's infrastructure.
+  </p>
+
+  <hr>
+
+  <h2 id="no-collection">2. Information We Do Not Collect</h2>
+  <p>KodeView does not collect, record, store, transmit, or share any of the following:</p>
+  <ul>
+    <li>Name, email address, username, or any other personal identifier</li>
+    <li>Phone number, postal address, or IP address</li>
+    <li>Precise or approximate location data</li>
+    <li>Device advertising ID, IDFA, or hardware fingerprint</li>
+    <li>Contacts, photos, camera, or microphone data</li>
+    <li>Payment or financial information</li>
+    <li>Browsing history or in-app navigation events</li>
+    <li>Crash reports or diagnostic telemetry</li>
+    <li>Usage analytics (session length, feature taps, screen views)</li>
+  </ul>
+  <p>
+    We do not embed any analytics SDKs (e.g. Firebase Analytics, Mixpanel, Amplitude),
+    advertising SDKs, or crash reporting SDKs. No data is sold, licensed, or shared with
+    data brokers or advertisers.
+  </p>
+
+  <hr>
+
+  <h2 id="on-device">3. Information Handled on Your Device</h2>
+  <p>
+    The following data is generated and stored locally on your device. It never leaves your
+    device except as described in <a href="#github">Section 4</a>.
+  </p>
+
+  <h3>3.1 Downloaded Repository Files</h3>
+  <p>
+    When you browse or download a public GitHub repository, the App saves the repository's
+    files in the App's private local storage (sandboxed by the operating system). This data
+    is accessible only to KodeView and is not accessible to other apps. It is deleted when
+    you remove the repository from the App or uninstall the App.
+  </p>
+
+  <h3>3.2 App Settings and Preferences</h3>
+  <p>
+    Your in-app preferences — such as colour theme, font size, reader layout, pinned
+    repositories, and sort order — are saved in local app storage on your device. This data
+    is never transmitted anywhere.
+  </p>
+
+  <h3>3.3 GitHub Personal Access Token (Optional)</h3>
+  <p>
+    You may optionally enter a GitHub Personal Access Token (PAT) in Settings to increase
+    GitHub API rate limits or to access repositories you own. If you do:
+  </p>
+  <ul>
+    <li>The token is held <strong>in memory only</strong> for the duration of the current session.</li>
+    <li>It is <strong>never written to persistent storage</strong> (disk, keychain, or shared preferences).</li>
+    <li>
+      It is transmitted <strong>only to GitHub's API</strong> (via HTTPS) and to no other destination,
+      only when you initiate a request that requires authentication.
+    </li>
+    <li>It is discarded immediately when you remove it in Settings or close the App.</li>
+  </ul>
+  <p>
+    We strongly recommend using a fine-grained token scoped to read-only access on public
+    repositories. Never paste a token with write or admin permissions into any third-party app.
+  </p>
+
+  <hr>
+
+  <h2 id="github">4. Information Sent to GitHub</h2>
+  <p>
+    KodeView communicates exclusively with GitHub's public infrastructure
+    (<code>api.github.com</code> and associated download URLs such as
+    <code>codeload.github.com</code> and <code>raw.githubusercontent.com</code>).
+    The App sends requests on your behalf when you:
+  </p>
+  <ul>
+    <li>Search for a repository by name or URL</li>
+    <li>Browse a repository's file tree or view a file</li>
+    <li>Download or clone a repository for offline use</li>
+    <li>Refresh or re-sync a saved repository</li>
+  </ul>
+  <p>These requests include:</p>
+  <ul>
+    <li>The repository URL or search query you entered</li>
+    <li>Standard HTTP metadata (your device's IP address, User-Agent string, request timestamp)</li>
+    <li>
+      Your optional PAT in the <code>Authorization: Bearer</code> header,
+      <em>only when you have provided one</em>
+    </li>
+  </ul>
+  <p>
+    GitHub collects and processes this traffic under their own Privacy Statement. KodeView
+    has no control over GitHub's data practices. You can review GitHub's policy at:<br>
+    <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener noreferrer">
+      https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement
+    </a>
+  </p>
+  <p>
+    <strong>KodeView is not affiliated with, endorsed by, or in any way officially connected
+    to GitHub, Inc. or its parent company Microsoft Corporation.</strong>
+  </p>
+
+  <hr>
+
+  <h2 id="permissions">5. App Permissions</h2>
+  <p>KodeView requests only the permissions necessary for its core functionality:</p>
+
+  <table border="1" cellpadding="6" cellspacing="0">
+    <thead>
+      <tr>
+        <th>Permission</th>
+        <th>Why it is needed</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Internet / Network access</strong></td>
+        <td>To send API requests to GitHub and download repository files.</td>
+      </tr>
+      <tr>
+        <td><strong>Local storage (read/write)</strong></td>
+        <td>To save repository files and settings on your device for offline use.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    No other device permissions are requested or used. The App does not access your camera,
+    microphone, contacts, calendar, location, Bluetooth, NFC, or biometric sensors.
+  </p>
+
+  <hr>
+
+  <h2 id="retention">6. Data Retention and Deletion</h2>
+  <p>
+    Because we operate no servers, all data retention and deletion is in your hands:
+  </p>
+  <ul>
+    <li>
+      <strong>Remove a repository:</strong> Tap the repository menu on the home screen and
+      select <em>Remove</em>. All locally stored files for that repository are deleted immediately.
+    </li>
+    <li>
+      <strong>Remove your GitHub token:</strong> Go to <em>Settings → GitHub Token</em> and
+      tap <em>Remove Token</em>. The token is cleared from memory immediately.
+    </li>
+    <li>
+      <strong>Reset all settings:</strong> Go to <em>Settings → Advanced → Reset App Data</em>
+      to erase all preferences and pinned repositories.
+    </li>
+    <li>
+      <strong>Uninstall the App:</strong> Uninstalling KodeView permanently deletes all locally
+      stored repositories, settings, and any in-memory data. There is no remote account or
+      cloud backup to delete separately.
+    </li>
+  </ul>
+
+  <hr>
+
+  <h2 id="security">7. Security</h2>
+  <p>
+    All network communication between the App and GitHub occurs over
+    <strong>HTTPS (TLS 1.2+)</strong>. Certificate pinning is applied to GitHub's API
+    endpoints to defend against man-in-the-middle attacks.
+  </p>
+  <p>
+    Your optional PAT is held in application memory only and is never written to disk,
+    shared preferences, the device keychain, or any log file. Local repository files are
+    stored in the App's private sandbox, which is protected by the operating system's
+    app isolation model (Android: internal storage; iOS: App Sandbox).
+  </p>
+  <p>
+    No method of electronic storage or transmission is 100% secure. While we have designed
+    the App to minimise the data it handles in the first place, we cannot guarantee absolute
+    security against all threats. We encourage you to keep your device's operating system
+    and the App updated to receive the latest security patches.
+  </p>
+
+  <hr>
+
+  <h2 id="third-parties">8. Third-Party Services</h2>
+  <p>
+    KodeView's only external dependency is GitHub's public API. The App does not integrate
+    any of the following:
+  </p>
+  <ul>
+    <li>Analytics services (Firebase, Amplitude, Mixpanel, etc.)</li>
+    <li>Advertising networks or SDKs</li>
+    <li>Crash reporting services (Sentry, Crashlytics, etc.)</li>
+    <li>Cloud storage or sync services</li>
+    <li>Social login or OAuth providers (other than GitHub's API for rate-limit purposes)</li>
+    <li>Payment processors</li>
+    <li>AI or machine learning cloud APIs</li>
+  </ul>
+  <p>
+    If this changes in a future version, this policy will be updated before the new
+    integration ships, and users will be notified as described in <a href="#changes">Section 11</a>.
+  </p>
+
+  <hr>
+
+  <h2 id="children">9. Children's Privacy</h2>
+  <p>
+    KodeView is not directed at children. Specifically:
+  </p>
+  <ul>
+    <li>
+      The App is not designed for, marketed to, or intended to be used by children
+      under 13 years of age (or the applicable minimum age in your jurisdiction,
+      e.g. 16 in the EU under GDPR).
+    </li>
+    <li>
+      We do not knowingly collect personal information from children. Because we collect
+      no personal information from anyone, we do not collect any from children either.
+    </li>
+    <li>
+      If you are a parent or guardian and believe your child has used the App in a way
+      that may have resulted in data being transmitted to GitHub (e.g. through a search
+      query), please contact us at the address in <a href="#contact">Section 12</a> and
+      review GitHub's Privacy Statement for how that data may be handled by them.
+    </li>
+  </ul>
+
+  <hr>
+
+  <h2 id="your-rights">10. Your Rights</h2>
+  <p>
+    Because KodeView does not collect, store, or process personal data on our own servers,
+    most data subject rights (access, rectification, erasure, portability) are exercised
+    directly on your device — you have full local control as described in
+    <a href="#retention">Section 6</a>.
+  </p>
+  <p>
+    For any data processed by GitHub on our behalf (e.g. API request logs tied to your IP
+    address), please contact GitHub directly via their privacy portal:
+    <a href="https://support.github.com/contact/privacy" target="_blank" rel="noopener noreferrer">
+      https://support.github.com/contact/privacy
+    </a>
+  </p>
+  <p>
+    If you are located in the European Economic Area (EEA), United Kingdom, or another
+    jurisdiction with applicable privacy laws, you may have additional rights including
+    the right to lodge a complaint with your local data protection authority. We are happy
+    to assist where we can — please reach out via <a href="#contact">Section 12</a>.
+  </p>
+
+  <hr>
+
+  <h2 id="changes">11. Changes to This Policy</h2>
+  <p>
+    We may update this Privacy Policy from time to time to reflect changes in the App,
+    applicable law, or our practices. When we do:
+  </p>
+  <ul>
+    <li>The <strong>"Effective date"</strong> at the top of this document will be updated.</li>
+    <li>
+      For <strong>material changes</strong> (e.g. introducing a new third-party service,
+      changing how tokens are stored), we will notify you via an in-app banner on first
+      launch after the update and via a notice on our support page at least 14 days
+      before the change takes effect.
+    </li>
+    <li>
+      For <strong>minor changes</strong> (e.g. clarifications, typo fixes), we will update
+      the document without separate notice, but the effective date will change.
+    </li>
+  </ul>
+  <p>
+    Continued use of the App after the effective date of a revised policy constitutes
+    your acceptance of that policy. If you do not agree to a revised policy, you should
+    uninstall the App before the effective date.
+  </p>
+  <p>
+    Previous versions of this policy are available on request by contacting us at the
+    address below.
+  </p>
+
+  <hr>
+
+  <h2 id="contact">12. Contact Us</h2>
+  <p>
+    If you have any questions, concerns, or requests related to this Privacy Policy or
+    the App's data practices, please contact us:
+  </p>
+  <ul>
+    <li><strong>Email:</strong> <a href="mailto:swaznilxd@gmail.com">swaznilxd@gmail.com</a></li>
+  </ul>
+
+  <hr>
+
+  <p>
+    <em>
+      This Privacy Policy was last updated on June 10, 2026 and supersedes all prior
+      versions of the KodeView Privacy Policy.
+    </em>
+  </p>
+
+</body>
+</html>

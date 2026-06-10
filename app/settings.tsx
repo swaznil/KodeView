@@ -19,7 +19,13 @@ import {
   useThemePreference,
   type ThemePreference,
 } from "@/hooks/use-theme-preference";
-import { APP_BUILD, APP_NAME, APP_VERSION } from "@/lib/app-info";
+import {
+  APP_BUILD,
+  APP_NAME,
+  APP_VERSION,
+  PRIVACY_POLICY_URL,
+} from "@/lib/app-info";
+import * as WebBrowser from "expo-web-browser";
 import { hasGitHubToken, setGitHubToken } from "@/lib/github";
 import { spacing, type AccentColor } from "@/lib/palette";
 
@@ -712,6 +718,41 @@ export default function SettingsScreen() {
             Offline code viewer for public GitHub repositories. Clone, browse,
             and read source files with syntax highlighting and Markdown preview.
           </Text>
+          <Text
+            style={{
+              color: palette.muted,
+              fontSize: 11,
+              lineHeight: 16,
+              textAlign: "center",
+            }}
+          >
+            Not affiliated with GitHub, Inc.
+          </Text>
+          <Pressable
+            onPress={() =>
+              WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL).catch(
+                () => undefined,
+              )
+            }
+            style={({ pressed }) => ({
+              borderColor: palette.border,
+              borderRadius: 8,
+              borderWidth: 1,
+              opacity: pressed ? 0.7 : 1,
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+            })}
+          >
+            <Text
+              style={{
+                color: palette.accent,
+                fontSize: 13,
+                fontWeight: "600",
+              }}
+            >
+              Privacy Policy
+            </Text>
+          </Pressable>
         </View>
       </Section>
     </ScrollView>
