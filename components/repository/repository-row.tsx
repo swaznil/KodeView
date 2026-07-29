@@ -41,6 +41,10 @@ export const RepositoryRow = memo(function RepositoryRow({
       }}
     >
       <Pressable
+        accessibilityHint="Opens the offline file browser. Long press for repository actions."
+        accessibilityLabel={`${repository.fullName}, ${repository.fileCount} files`}
+        accessibilityRole="button"
+        onLongPress={() => onOpenMenu(repository)}
         onPress={() =>
           router.push({
             pathname: "/repository/[id]",

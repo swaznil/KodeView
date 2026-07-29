@@ -1,9 +1,9 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Text, View } from 'react-native';
+import { FlatList, Text, View } from 'react-native';
 
-import { InlineError, Pill } from '@/components/app/shared';
+import { InlineError, LoadingState, Pill } from '@/components/app/shared';
 import { useAppPalette } from '@/hooks/use-theme-preference';
 import { fetchRepositoryBranches, type GitHubBranch } from '@/lib/github';
 import { spacing } from '@/lib/palette';
@@ -16,9 +16,11 @@ export default function BranchesScreen() {
   const [branches, setBranches] = useState<GitHubBranch[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
 
     (async () => {
       setBusy(true);
@@ -35,9 +37,9 @@ export default function BranchesScreen() {
         }
 
         setRepository(found);
-        setBranches(await fetchRepositoryBranches(found.owner, found.repo));
+        setBranches(await fetchRepositoryBranches(found.owner, found.repo, controller.signal));
       } catch (caught) {
-        if (active) {
+        if (active && !controller.signal.aborted) {
           setError(caught instanceof Error ? caught.message : 'Could not load branches.');
         }
       } finally {
@@ -49,20 +51,27 @@ export default function BranchesScreen() {
 
     return () => {
       active = false;
+      controller.abort();
     };
-  }, [id]);
+  }, [id, reloadKey]);
 
   return (
     <View style={{ backgroundColor: palette.background, flex: 1 }}>
       <Stack.Screen options={{ title: repository ? `Branches · ${repository.repo}` : 'Branches' }} />
       {busy ? (
-        <ActivityIndicator color={palette.accent} style={{ marginTop: 32 }} />
+        <LoadingState detail="Fetching the latest branch list from GitHub" palette={palette} title="Loading branches" />
       ) : error ? (
         <View style={{ padding: spacing.lg }}>
-          <InlineError message={error} palette={palette} />
+          <InlineError
+            actionLabel="Retry"
+            message={error}
+            onAction={() => setReloadKey((value) => value + 1)}
+            palette={palette}
+          />
         </View>
       ) : (
         <FlatList
+          contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{ gap: 10, padding: 16, paddingBottom: 32 }}
           data={branches}
           initialNumToRender={20}
@@ -86,8 +95,8 @@ export default function BranchesScreen() {
                 }}>
                 <MaterialIcons color={current ? palette.accent : palette.muted} name="call-split" size={20} />
                 <View style={{ flex: 1, gap: 3 }}>
-                  <Text style={{ color: palette.text, fontSize: 15, fontWeight: '800' }}>{item.name}</Text>
-                  <Text style={{ color: palette.muted, fontFamily: 'monospace', fontSize: 12 }}>{item.commitSha}</Text>
+                  <Text selectable style={{ color: palette.text, fontSize: 15, fontWeight: '800' }}>{item.name}</Text>
+                  <Text selectable style={{ color: palette.muted, fontFamily: 'monospace', fontSize: 12 }}>{item.commitSha}</Text>
                 </View>
                 {current ? <Pill palette={palette} selected>default</Pill> : null}
                 {item.protected ? <Pill palette={palette}>protected</Pill> : null}

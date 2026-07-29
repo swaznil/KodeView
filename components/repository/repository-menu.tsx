@@ -1,5 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as Clipboard from "expo-clipboard";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { useEffect, useRef } from "react";
 import { Animated, Easing, Modal, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,6 +10,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppPalette } from "@/hooks/use-theme-preference";
 import { spacing, type Palette } from "@/lib/palette";
 import type { SavedRepository } from "@/lib/repository-storage";
+
+const USE_NATIVE_DRIVER = process.env.EXPO_OS !== "web";
 
 type MenuAction = {
   destructive?: boolean;
@@ -146,20 +151,20 @@ export function RepositoryMenu({
         Animated.timing(backdropAnim, {
           toValue: 1,
           duration: 220,
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
         Animated.spring(sheetAnim, {
           toValue: 1,
           damping: 22,
           stiffness: 280,
           mass: 0.9,
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
         Animated.timing(slideAnim, {
           toValue: 1,
           duration: 380,
           easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
       ]).start();
     }
@@ -170,13 +175,13 @@ export function RepositoryMenu({
       Animated.timing(backdropAnim, {
         toValue: 0,
         duration: 180,
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
       Animated.timing(sheetAnim, {
         toValue: 0,
         duration: 200,
         easing: Easing.in(Easing.ease),
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
     ]).start(() => onClose());
   }
@@ -228,7 +233,7 @@ export function RepositoryMenu({
     {
       icon: "call-split",
       label: "Branches",
-      description: "Switch or explore branches",
+      description: "View repository branches",
       onPress: () => {
         handleClose();
         setTimeout(
@@ -239,6 +244,29 @@ export function RepositoryMenu({
             }),
           240,
         );
+      },
+    },
+    {
+      icon: "open-in-new",
+      label: "Open on GitHub",
+      description: "View the repository in your browser",
+      onPress: () => {
+        handleClose();
+        setTimeout(
+          () => WebBrowser.openBrowserAsync(repository.htmlUrl).catch(() => undefined),
+          240,
+        );
+      },
+    },
+    {
+      icon: "link",
+      label: "Copy GitHub URL",
+      description: "Copy a shareable repository link",
+      onPress: () => {
+        Clipboard.setStringAsync(repository.htmlUrl)
+          .then(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success))
+          .catch(() => undefined);
+        handleClose();
       },
     },
     {

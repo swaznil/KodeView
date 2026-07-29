@@ -1,6 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { memo, useCallback, useMemo, type ReactNode } from 'react';
+import { memo, useCallback, useMemo, type ReactElement, type ReactNode } from 'react';
 import { FlatList, Pressable, Text, View, type ListRenderItem } from 'react-native';
 
 import { useAppPalette } from '@/hooks/use-theme-preference';
@@ -153,6 +155,14 @@ const TreeRow = memo(function TreeRow({
 
   return (
     <Pressable
+      accessibilityHint={directory ? 'Expands or collapses this folder. Long press to copy its path.' : 'Opens this file. Long press to copy its path.'}
+      accessibilityLabel={`${directory ? 'Folder' : 'File'} ${node.path}`}
+      accessibilityRole="button"
+      onLongPress={() => {
+        Clipboard.setStringAsync(node.path)
+          .then(() => Haptics.selectionAsync())
+          .catch(() => undefined);
+      }}
       onPress={() =>
         directory
           ? onToggle(node.path)
@@ -163,8 +173,10 @@ const TreeRow = memo(function TreeRow({
       }
       style={({ pressed }) => ({
         alignItems: 'center',
-        backgroundColor: pressed ? palette.secondary : 'transparent',
+        backgroundColor: pressed ? palette.secondary : palette.fill,
+        borderColor: palette.border,
         borderRadius: 6,
+        borderWidth: 1,
         flexDirection: 'row',
         gap: 6,
         minHeight: rowHeight,
@@ -226,6 +238,7 @@ const TreeRow = memo(function TreeRow({
 export const FileTreeList = memo(function FileTreeList({
   compact,
   expanded,
+  header,
   nodes,
   onToggle,
   repositoryId,
@@ -233,6 +246,7 @@ export const FileTreeList = memo(function FileTreeList({
 }: {
   compact: boolean;
   expanded: Set<string>;
+  header?: ReactElement;
   nodes: VisibleTreeRow['node'][];
   onToggle: (path: string) => void;
   repositoryId: string;
@@ -259,34 +273,33 @@ export const FileTreeList = memo(function FileTreeList({
     [compact, expanded, onToggle, repositoryId, showFileSizes],
   );
 
-  if (rows.length === 0) {
-    return (
-      <View
-        style={{
-          alignItems: 'center',
-          flexDirection: 'row',
-          gap: 6,
-          paddingVertical: spacing.md,
-        }}
-      >
-        <MaterialIcons color={palette.muted} name="search-off" size={16} />
-        <Text style={{ color: palette.muted, fontSize: 13 }}>
-          No matching files
-        </Text>
-      </View>
-    );
-  }
-
   return (
     <FlatList
+      contentContainerStyle={{ gap: 3, padding: spacing.lg, paddingBottom: 40 }}
+      contentInsetAdjustmentBehavior="automatic"
       data={rows}
       initialNumToRender={30}
+      keyboardDismissMode="on-drag"
       keyExtractor={(item) => item.key}
+      ListEmptyComponent={
+        <View
+          style={{
+            alignItems: 'center',
+            flexDirection: 'row',
+            gap: 6,
+            justifyContent: 'center',
+            paddingVertical: spacing.xxl,
+          }}>
+          <MaterialIcons color={palette.muted} name="search-off" size={18} />
+          <Text style={{ color: palette.muted, fontSize: 13 }}>No matching files</Text>
+        </View>
+      }
+      ListHeaderComponent={header}
+      ListHeaderComponentStyle={{ marginBottom: spacing.md }}
       maxToRenderPerBatch={28}
-      nestedScrollEnabled
       removeClippedSubviews
       renderItem={renderItem}
-      scrollEnabled={false}
+      style={{ flex: 1 }}
       windowSize={10}
     />
   );

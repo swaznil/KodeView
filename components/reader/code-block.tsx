@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo } from 'react';
-import { FlatList, Text, View, type ListRenderItem } from 'react-native';
+import { FlatList, Text, View, useWindowDimensions, type ListRenderItem } from 'react-native';
 
 import { highlightLine } from '@/lib/markdown';
 import { type Palette } from '@/lib/palette';
@@ -9,12 +9,11 @@ type CodeBlockProps = {
   extension: string | null;
   fontSize: number;
   palette: Palette;
+  searchQuery?: string;
   showLines: boolean;
   virtualized?: boolean;
   wrap: boolean;
 };
-
-const VIRTUALIZE_AFTER = 80;
 
 type LineRow = {
   index: number;
@@ -29,6 +28,7 @@ const CodeLine = memo(function CodeLine({
   line,
   lineHeight,
   palette,
+  searchQuery,
   showLines,
   wrap,
 }: {
@@ -39,6 +39,7 @@ const CodeLine = memo(function CodeLine({
   line: string;
   lineHeight: number;
   palette: Palette;
+  searchQuery?: string;
   showLines: boolean;
   wrap: boolean;
 }) {
@@ -60,9 +61,17 @@ const CodeLine = memo(function CodeLine({
   );
 
   const parts = useMemo(() => highlightLine(line, extension, colors), [colors, extension, line]);
+  const matchesSearch = Boolean(
+    searchQuery?.trim() && line.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()),
+  );
 
   return (
-    <View style={{ flexDirection: 'row', width: wrap ? '100%' : undefined }}>
+    <View
+      style={{
+        backgroundColor: matchesSearch ? `${palette.accent}24` : 'transparent',
+        flexDirection: 'row',
+        width: wrap ? '100%' : undefined,
+      }}>
       {showLines ? (
         <Text
           style={{
@@ -78,6 +87,7 @@ const CodeLine = memo(function CodeLine({
         </Text>
       ) : null}
       <Text
+        selectable
         style={{
           color: palette.text,
           flex: wrap ? 1 : undefined,
@@ -101,14 +111,24 @@ export const CodeBlock = memo(function CodeBlock({
   extension,
   fontSize,
   palette,
+  searchQuery,
   showLines,
-  virtualized = true,
+  virtualized = false,
   wrap,
 }: CodeBlockProps) {
+  const { width: windowWidth } = useWindowDimensions();
   const lines = useMemo(() => content.replace(/\t/g, '  ').split(/\r\n|\n|\r/), [content]);
   const gutter = String(lines.length).length;
   const lineHeight = fontSize + 8;
   const data = useMemo(() => lines.map((line, index) => ({ index, line })), [lines]);
+  const contentWidth = useMemo(() => {
+    if (wrap) {
+      return windowWidth;
+    }
+    const longestLine = lines.reduce((longest, line) => Math.max(longest, line.length), 0);
+    const gutterWidth = showLines ? (gutter + 2) * fontSize * 0.62 : 0;
+    return Math.max(windowWidth, Math.min(longestLine, 5_000) * fontSize * 0.62 + gutterWidth + 32);
+  }, [fontSize, gutter, lines, showLines, windowWidth, wrap]);
 
   const renderItem: ListRenderItem<LineRow> = useCallback(
     ({ item }) => (
@@ -120,29 +140,20 @@ export const CodeBlock = memo(function CodeBlock({
         line={item.line}
         lineHeight={lineHeight}
         palette={palette}
+        searchQuery={searchQuery}
         showLines={showLines}
         wrap={wrap}
       />
     ),
-    [extension, fontSize, gutter, lineHeight, palette, showLines, wrap]
+    [extension, fontSize, gutter, lineHeight, palette, searchQuery, showLines, wrap]
   );
 
-  const getItemLayout = useCallback(
-    (_: ArrayLike<LineRow> | null | undefined, index: number) => ({
-      index,
-      length: lineHeight,
-      offset: lineHeight * index,
-    }),
-    [lineHeight]
-  );
-
-  if (virtualized && lines.length > VIRTUALIZE_AFTER) {
+  if (virtualized) {
     return (
       <FlatList
         contentContainerStyle={{ padding: 16 }}
         data={data}
         directionalLockEnabled
-        getItemLayout={getItemLayout}
         initialNumToRender={32}
         keyExtractor={(item) => String(item.index)}
         maxToRenderPerBatch={40}
@@ -150,7 +161,11 @@ export const CodeBlock = memo(function CodeBlock({
         removeClippedSubviews
         renderItem={renderItem}
         scrollEventThrottle={16}
-        style={{ flex: 1, minWidth: wrap ? '100%' : undefined }}
+        style={{
+          flex: 1,
+          height: '100%',
+          width: wrap ? '100%' : contentWidth,
+        }}
         windowSize={12}
       />
     );
@@ -168,6 +183,7 @@ export const CodeBlock = memo(function CodeBlock({
           line={item.line}
           lineHeight={lineHeight}
           palette={palette}
+          searchQuery={searchQuery}
           showLines={showLines}
           wrap={wrap}
         />

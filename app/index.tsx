@@ -14,7 +14,15 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CloneModal } from '@/components/app/clone-modal';
-import { AppHeader, HeaderIconButton, InlineError, Panel, Pill, ProgressBar } from '@/components/app/shared';
+import {
+  AppHeader,
+  HeaderIconButton,
+  InlineError,
+  LoadingState,
+  Panel,
+  Pill,
+  ProgressBar,
+} from '@/components/app/shared';
 import { RepositoryMenu } from '@/components/repository/repository-menu';
 import { RepositoryRow } from '@/components/repository/repository-row';
 import { useAppPalette, useThemePreference } from '@/hooks/use-theme-preference';
@@ -48,6 +56,7 @@ export default function HomeScreen() {
   const [query, setQuery] = useState('');
   const [menuRepository, setMenuRepository] = useState<SavedRepository | null>(null);
   const [cloneVisible, setCloneVisible] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState<ImportProgress | null>(null);
@@ -69,16 +78,29 @@ export default function HomeScreen() {
       let active = true;
 
       (async () => {
-        await refresh();
-        if (!active) {
-          return;
-        }
-
-        if (appPreferences.autoSync) {
-          setSyncing(true);
-          await runAutoSyncIfEnabled(true);
+        try {
+          await refresh();
           if (active) {
-            await refresh();
+            setInitialLoading(false);
+          }
+          if (!active) {
+            return;
+          }
+
+          if (appPreferences.autoSync) {
+            setSyncing(true);
+            await runAutoSyncIfEnabled(true);
+            if (active) {
+              await refresh();
+            }
+          }
+        } catch (caught) {
+          if (active) {
+            setError(caught instanceof Error ? caught.message : 'Could not load your repositories.');
+          }
+        } finally {
+          if (active) {
+            setInitialLoading(false);
             setSyncing(false);
           }
         }
@@ -99,9 +121,11 @@ export default function HomeScreen() {
   const subtitle = useMemo(
     () =>
       repoCount === 0
-        ? 'Clone public GitHub repositories for offline reading.'
+        ? initialLoading
+          ? 'Loading your offline library…'
+          : 'Clone public GitHub repositories for offline reading.'
         : `${repoCount} local ${repoCount === 1 ? 'repository' : 'repositories'}${syncing ? ' · syncing…' : ''}`,
-    [repoCount, syncing]
+    [initialLoading, repoCount, syncing]
   );
 
   async function handlePin(repository: SavedRepository) {
@@ -153,11 +177,17 @@ export default function HomeScreen() {
             tintColor={palette.accent}
             onRefresh={async () => {
               setRefreshing(true);
-              if (appPreferences.autoSync) {
-                await syncStaleRepositories({ force: true }).catch(() => undefined);
+              setError(null);
+              try {
+                if (appPreferences.autoSync) {
+                  await syncStaleRepositories({ force: true });
+                }
+                await refresh();
+              } catch (caught) {
+                setError(caught instanceof Error ? caught.message : 'Refresh failed.');
+              } finally {
+                setRefreshing(false);
               }
-              await refresh();
-              setRefreshing(false);
             }}
           />
         }
@@ -244,7 +274,9 @@ export default function HomeScreen() {
             </Pill>
           </View>
 
-          {repoCount === 0 ? (
+          {initialLoading ? (
+            <LoadingState detail="Checking downloaded repositories" palette={palette} title="Loading library" />
+          ) : repoCount === 0 ? (
             <Panel palette={palette}>
               <MaterialIcons color={palette.muted} name="inventory-2" size={26} />
               <Text style={{ color: palette.text, fontSize: 16, fontWeight: '800' }}>No repositories saved yet</Text>

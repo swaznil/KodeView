@@ -1,22 +1,26 @@
-import { ScrollView, Text, View } from 'react-native';
+import { Linking, ScrollView, Text, View } from 'react-native';
 
 import { CodeBlock } from '@/components/reader/code-block';
 import { parseInline, parseMarkdown } from '@/lib/markdown';
 import { type Palette } from '@/lib/palette';
 
 type MarkdownViewProps = {
+  baseUrl?: string;
   content: string;
   fontSize: number;
   palette: Palette;
+  searchQuery?: string;
   showCodeLines: boolean;
   wrapCode: boolean;
 };
 
 function InlineText({
+  baseUrl,
   fontSize,
   palette,
   text,
 }: {
+  baseUrl?: string;
   fontSize: number;
   palette: Palette;
   text: string;
@@ -24,11 +28,22 @@ function InlineText({
   const segments = parseInline(text);
 
   return (
-    <Text style={{ color: palette.text, fontSize, lineHeight: fontSize + 9 }}>
+    <Text selectable style={{ color: palette.text, fontSize, lineHeight: fontSize + 9 }}>
       {segments.map((segment, index) => {
         if (segment.link) {
           return (
-            <Text key={index} style={{ color: palette.accent, fontWeight: '700', textDecorationLine: 'underline' }}>
+            <Text
+              accessibilityRole="link"
+              key={index}
+              onPress={() => {
+                try {
+                  const href = baseUrl ? new URL(segment.link!, baseUrl).toString() : segment.link!;
+                  Linking.openURL(href).catch(() => undefined);
+                } catch {
+                  // Ignore malformed links in repository documentation.
+                }
+              }}
+              style={{ color: palette.accent, fontWeight: '700', textDecorationLine: 'underline' }}>
               {segment.text}
             </Text>
           );
@@ -66,7 +81,15 @@ function InlineText({
   );
 }
 
-export function MarkdownView({ content, fontSize, palette, showCodeLines, wrapCode }: MarkdownViewProps) {
+export function MarkdownView({
+  baseUrl,
+  content,
+  fontSize,
+  palette,
+  searchQuery,
+  showCodeLines,
+  wrapCode,
+}: MarkdownViewProps) {
   const blocks = parseMarkdown(content);
 
   return (
@@ -88,7 +111,7 @@ export function MarkdownView({ content, fontSize, palette, showCodeLines, wrapCo
               </Text>
             );
           case 'paragraph':
-            return <InlineText key={index} fontSize={fontSize} palette={palette} text={block.text} />;
+            return <InlineText baseUrl={baseUrl} key={index} fontSize={fontSize} palette={palette} text={block.text} />;
           case 'list':
             return (
               <View key={index} style={{ gap: 6, paddingLeft: 4 }}>
@@ -98,7 +121,7 @@ export function MarkdownView({ content, fontSize, palette, showCodeLines, wrapCo
                       {block.ordered ? `${itemIndex + 1}.` : '•'}
                     </Text>
                     <View style={{ flex: 1 }}>
-                      <InlineText fontSize={fontSize} palette={palette} text={item} />
+                      <InlineText baseUrl={baseUrl} fontSize={fontSize} palette={palette} text={item} />
                     </View>
                   </View>
                 ))}
@@ -116,7 +139,7 @@ export function MarkdownView({ content, fontSize, palette, showCodeLines, wrapCo
                   paddingHorizontal: 12,
                   paddingVertical: 10,
                 }}>
-                <InlineText fontSize={fontSize} palette={palette} text={block.text} />
+                <InlineText baseUrl={baseUrl} fontSize={fontSize} palette={palette} text={block.text} />
               </View>
             );
           case 'code':
@@ -150,6 +173,7 @@ export function MarkdownView({ content, fontSize, palette, showCodeLines, wrapCo
                   extension={block.language}
                   fontSize={fontSize - 1}
                   palette={palette}
+                  searchQuery={searchQuery}
                   showLines={showCodeLines}
                   wrap={wrapCode}
                 />
@@ -171,16 +195,20 @@ export function ReaderBody({
   content,
   extension,
   fontSize,
+  markdownBaseUrl,
   markdownPreview,
   palette,
+  searchQuery,
   showCodeLines,
   wrap,
 }: {
   content: string;
   extension: string | null;
   fontSize: number;
+  markdownBaseUrl?: string;
   markdownPreview: boolean;
   palette: Palette;
+  searchQuery?: string;
   showCodeLines: boolean;
   wrap: boolean;
 }) {
@@ -190,9 +218,11 @@ export function ReaderBody({
     return (
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }} style={{ flex: 1 }}>
         <MarkdownView
+          baseUrl={markdownBaseUrl}
           content={content}
           fontSize={fontSize + 1}
           palette={palette}
+          searchQuery={searchQuery}
           showCodeLines={showCodeLines}
           wrapCode={wrap}
         />
@@ -206,8 +236,9 @@ export function ReaderBody({
       extension={extension}
       fontSize={fontSize}
       palette={palette}
+      searchQuery={searchQuery}
       showLines={showCodeLines}
-      virtualized={wrap}
+      virtualized
       wrap={wrap}
     />
   );
@@ -219,15 +250,10 @@ export function ReaderBody({
   return (
     <ScrollView
       directionalLockEnabled
-      nestedScrollEnabled
+      horizontal
+      contentContainerStyle={{ flexGrow: 1 }}
       style={{ flex: 1 }}>
-      <ScrollView
-        directionalLockEnabled
-        horizontal
-        nestedScrollEnabled
-        contentContainerStyle={{ flexGrow: 1 }}>
-        {code}
-      </ScrollView>
+      {code}
     </ScrollView>
   );
 }

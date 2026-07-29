@@ -13,6 +13,7 @@ export type GitHubRepositoryDetails = ParsedGitHubRepository & {
   language: string | null;
   ownerAvatarUrl: string;
   pushedAt: string | null;
+  sizeBytes: number;
   stars: number;
   zipUrl: string;
 };
@@ -33,7 +34,7 @@ export type GitHubBranch = {
 
 export type GitHubRepositorySearchResult = Omit<
   GitHubRepositoryDetails,
-  "zipUrl"
+  "sizeBytes" | "zipUrl"
 > & {
   forks: number;
   openIssues: number;
@@ -109,6 +110,7 @@ const GITHUB_API_URL = "https://api.github.com";
 const SEARCH_PAGE_SIZE = 30;
 const CACHE_DURATION_MS = 1000 * 60 * 15; // 15 min
 const SEARCH_CACHE_DURATION_MS = 1000 * 60 * 10; // 10 min
+const REQUEST_TIMEOUT_MS = 20_000;
 
 // ─── PAT storage ───────────────────────────────────────────────────────────────
 // Token is stored in-memory only for this session. The caller (settings screen)
@@ -206,10 +208,30 @@ async function githubFetch<T>(
     if (cached !== null) return cached;
   }
 
-  const response = await fetch(`${GITHUB_API_URL}${path}`, {
-    headers: getGitHubHeaders(),
-    signal,
-  });
+  const requestController = new AbortController();
+  let timedOut = false;
+  const handleExternalAbort = () => requestController.abort();
+  signal?.addEventListener("abort", handleExternalAbort, { once: true });
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    requestController.abort();
+  }, REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${GITHUB_API_URL}${path}`, {
+      headers: getGitHubHeaders(),
+      signal: requestController.signal,
+    });
+  } catch (caught) {
+    if (timedOut) {
+      throw new Error("GitHub took too long to respond. Check your connection and try again.");
+    }
+    throw caught;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", handleExternalAbort);
+  }
 
   // Track rate limit info from every response
   const rateInfo = parseRateLimitHeaders(response.headers);
@@ -224,7 +246,11 @@ async function githubFetch<T>(
     const msg = (data as { message?: string }).message ?? "";
 
     // Surface a typed rate-limit error with reset time
-    if (response.status === 403 || response.status === 429) {
+    const rateLimited =
+      response.status === 429 ||
+      rateInfo?.remaining === 0 ||
+      /rate limit|secondary rate/i.test(msg);
+    if (rateLimited) {
       const retryAfter = response.headers.get("retry-after");
       const resetSecs = response.headers.get("x-ratelimit-reset");
 
@@ -326,6 +352,7 @@ export async function resolveGitHubRepository(
     language: data.language ?? null,
     ownerAvatarUrl: data.owner?.avatar_url ?? ownerAvatarUrl(owner),
     pushedAt: data.pushed_at ?? null,
+    sizeBytes: Math.max(0, Math.floor((data.size ?? 0) * 1024)),
     stars: data.stargazers_count ?? 0,
     zipUrl:
       data.zipball_url ??

@@ -8,6 +8,11 @@ const REPOSITORY_DIRECTORY = `${APP_DIRECTORY}repositories/`;
 const DOWNLOAD_DIRECTORY = `${APP_DIRECTORY}downloads/`;
 const MANIFEST_FILE = ".kodeview.json";
 const MAX_TEXT_FILE_BYTES = 1.5 * 1024 * 1024;
+export const MAX_IMPORT_SIZE_BYTES = 100 * 1024 * 1024;
+const MAX_REPOSITORY_FILES = 50_000;
+const MIN_FREE_SPACE_BYTES = 64 * 1024 * 1024;
+const STAGING_SUFFIX = ".staging";
+const BACKUP_SUFFIX = ".backup";
 
 export type SavedRepository = {
   defaultBranch: string;
@@ -129,7 +134,11 @@ function extensionFor(name: string) {
 }
 
 function hasUnsafePath(path: string) {
-  return path.split("/").some((part) => part === ".." || part === ".");
+  return (
+    path.startsWith("/") ||
+    path.includes("\\") ||
+    path.split("/").some((part) => part === ".." || part === ".")
+  );
 }
 
 async function ensureDirectory(uri: string) {
@@ -145,6 +154,26 @@ async function readManifest(repoUri: string) {
   return JSON.parse(manifest) as SavedRepository;
 }
 
+async function recoverRepositoryBackup(id: string) {
+  const repositoryUri = `${REPOSITORY_DIRECTORY}${id}/`;
+  const backupUri = `${REPOSITORY_DIRECTORY}${id}${BACKUP_SUFFIX}/`;
+  const [repositoryInfo, backupInfo] = await Promise.all([
+    FileSystem.getInfoAsync(repositoryUri),
+    FileSystem.getInfoAsync(backupUri),
+  ]);
+
+  if (!backupInfo.exists) {
+    return;
+  }
+
+  if (repositoryInfo.exists) {
+    await FileSystem.deleteAsync(backupUri, { idempotent: true });
+    return;
+  }
+
+  await FileSystem.moveAsync({ from: backupUri, to: repositoryUri });
+}
+
 export async function listSavedRepositories(): Promise<SavedRepository[]> {
   if (!hasDocumentDirectory()) {
     return [];
@@ -152,17 +181,26 @@ export async function listSavedRepositories(): Promise<SavedRepository[]> {
 
   await ensureDirectory(REPOSITORY_DIRECTORY);
 
-  const ids = await FileSystem.readDirectoryAsync(REPOSITORY_DIRECTORY).catch(
+  let ids = await FileSystem.readDirectoryAsync(REPOSITORY_DIRECTORY).catch(
     () => [],
   );
+  const backups = ids.filter((id) => id.endsWith(BACKUP_SUFFIX));
+  await Promise.all(
+    backups.map((backup) =>
+      recoverRepositoryBackup(backup.slice(0, -BACKUP_SUFFIX.length)).catch(() => undefined),
+    ),
+  );
+  ids = await FileSystem.readDirectoryAsync(REPOSITORY_DIRECTORY).catch(() => []);
   const repositories = await Promise.all(
-    ids.map(async (id) => {
+    ids
+      .filter((id) => !id.endsWith(STAGING_SUFFIX) && !id.endsWith(BACKUP_SUFFIX))
+      .map(async (id) => {
       try {
         return await readManifest(`${REPOSITORY_DIRECTORY}${id}/`);
       } catch {
         return null;
       }
-    }),
+      }),
   );
 
   return repositories
@@ -193,20 +231,38 @@ export async function importRepository(
     `${details.owner}-${details.repo}-${details.defaultBranch}`,
   );
   const repoUri = `${REPOSITORY_DIRECTORY}${id}/`;
+  const stagingUri = `${REPOSITORY_DIRECTORY}${id}${STAGING_SUFFIX}/`;
+  const backupUri = `${REPOSITORY_DIRECTORY}${id}${BACKUP_SUFFIX}/`;
   const zipUri = `${DOWNLOAD_DIRECTORY}${id}.zip`;
+
+  if (details.sizeBytes > MAX_IMPORT_SIZE_BYTES) {
+    throw new Error(
+      `This repository is about ${formatBytes(details.sizeBytes)}. KodeView limits imports to ${formatBytes(MAX_IMPORT_SIZE_BYTES)} to prevent mobile memory crashes.`,
+    );
+  }
+
+  const freeSpace = await FileSystem.getFreeDiskStorageAsync().catch(() => Number.POSITIVE_INFINITY);
+  const estimatedRequired = Math.max(MIN_FREE_SPACE_BYTES, details.sizeBytes * 3);
+  if (freeSpace < estimatedRequired) {
+    throw new Error(
+      `Not enough free space. Free at least ${formatBytes(estimatedRequired - freeSpace)} and try again.`,
+    );
+  }
 
   onProgress?.({
     phase: "download",
     progress: 0,
     message: "Preparing download",
   });
-  await FileSystem.deleteAsync(repoUri, { idempotent: true });
+  await recoverRepositoryBackup(id);
+  await FileSystem.deleteAsync(stagingUri, { idempotent: true });
   await FileSystem.deleteAsync(zipUri, { idempotent: true }).catch(
     () => undefined,
   );
-  await ensureDirectory(repoUri);
+  await ensureDirectory(stagingUri);
 
-  const download = FileSystem.createDownloadResumable(
+  try {
+    const download = FileSystem.createDownloadResumable(
     details.zipUrl,
     zipUri,
     {},
@@ -222,82 +278,92 @@ export async function importRepository(
         totalBytes: expected > 0 ? expected : undefined,
       });
     },
-  );
+    );
 
-  const result = await download.downloadAsync();
+    const result = await download.downloadAsync();
 
   // Report final downloaded size if possible
-  try {
-    const info = await FileSystem.getInfoAsync(zipUri);
-    if (info.exists) {
-      onProgress?.({
-        phase: "download",
-        progress: 1,
-        message: "Download complete",
-        downloadedBytes: info.size ?? undefined,
-        totalBytes: info.size ?? undefined,
-      });
+    try {
+      const info = await FileSystem.getInfoAsync(zipUri);
+      if (info.exists) {
+        onProgress?.({
+          phase: "download",
+          progress: 1,
+          message: "Download complete",
+          downloadedBytes: info.size ?? undefined,
+          totalBytes: info.size ?? undefined,
+        });
+      }
+    } catch {
+      // Progress metadata is optional.
     }
-  } catch {
-    // ignore
-  }
 
-  if (!result || result.status < 200 || result.status >= 300) {
-    throw new Error(
-      `Download failed with status ${result?.status ?? "unknown"}.`,
-    );
-  }
+    if (!result || result.status < 200 || result.status >= 300) {
+      throw new Error(
+        `Download failed with status ${result?.status ?? "unknown"}.`,
+      );
+    }
 
   onProgress?.({
     phase: "extract",
     progress: 0,
     message: "Reading ZIP archive",
   });
-  const zipBase64 = await FileSystem.readAsStringAsync(zipUri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-  const zip = await JSZip.loadAsync(zipBase64, { base64: true });
-  const entries = Object.values(zip.files).filter((entry) => !entry.dir);
-  const rootName = entries[0]?.name.split("/")[0] ?? details.repo;
-
-  let fileCount = 0;
-  let sizeBytes = 0;
-
-  for (let index = 0; index < entries.length; index += 1) {
-    const entry = entries[index];
-    const rootPrefix = `${rootName}/`;
-    const relativePath = entry.name.startsWith(rootPrefix)
-      ? entry.name.slice(rootPrefix.length)
-      : entry.name;
-
-    if (!relativePath || hasUnsafePath(relativePath)) {
-      continue;
-    }
-
-    const parent = dirname(relativePath);
-
-    if (parent) {
-      await ensureDirectory(`${repoUri}${parent}`);
-    }
-
-    const base64 = await entry.async("base64");
-    await FileSystem.writeAsStringAsync(`${repoUri}${relativePath}`, base64, {
+    const zipBase64 = await FileSystem.readAsStringAsync(zipUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
-
-    fileCount += 1;
-    sizeBytes += Math.ceil((base64.length * 3) / 4);
-
-    if (index % 12 === 0 || index === entries.length - 1) {
-      onProgress?.({
-        phase: "extract",
-        progress: entries.length > 0 ? (index + 1) / entries.length : 1,
-        message: `Extracting ${fileCount.toLocaleString()} files`,
-      });
+    const zip = await JSZip.loadAsync(zipBase64, { base64: true });
+    const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+    if (entries.length > MAX_REPOSITORY_FILES) {
+      throw new Error(
+        `This archive contains more than ${MAX_REPOSITORY_FILES.toLocaleString()} files, which is too large for a reliable mobile import.`,
+      );
     }
-  }
+    const rootName = entries[0]?.name.split("/")[0] ?? details.repo;
 
-  const manifest: SavedRepository = {
+    let fileCount = 0;
+    let sizeBytes = 0;
+
+    for (let index = 0; index < entries.length; index += 1) {
+      const entry = entries[index];
+      const rootPrefix = `${rootName}/`;
+      const relativePath = entry.name.startsWith(rootPrefix)
+        ? entry.name.slice(rootPrefix.length)
+        : entry.name;
+
+      if (!relativePath || hasUnsafePath(relativePath)) {
+        continue;
+      }
+
+      const parent = dirname(relativePath);
+
+      if (parent) {
+        await ensureDirectory(`${stagingUri}${parent}`);
+      }
+
+      const base64 = await entry.async("base64");
+      await FileSystem.writeAsStringAsync(`${stagingUri}${relativePath}`, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      fileCount += 1;
+      sizeBytes += Math.ceil((base64.length * 3) / 4);
+      if (sizeBytes > MAX_IMPORT_SIZE_BYTES) {
+        throw new Error(
+          `The extracted repository exceeds KodeView's ${formatBytes(MAX_IMPORT_SIZE_BYTES)} mobile safety limit.`,
+        );
+      }
+
+      if (index % 12 === 0 || index === entries.length - 1) {
+        onProgress?.({
+          phase: "extract",
+          progress: entries.length > 0 ? (index + 1) / entries.length : 1,
+          message: `Extracting ${fileCount.toLocaleString()} files`,
+        });
+      }
+    }
+
+    const manifest: SavedRepository = {
     id,
     owner: details.owner,
     ownerAvatarUrl: details.ownerAvatarUrl,
@@ -314,24 +380,43 @@ export async function importRepository(
     rootUri: repoUri,
     fileCount,
     sizeBytes,
-  };
+    };
 
-  onProgress?.({
-    phase: "index",
-    progress: 0.98,
-    message: "Saving local index",
-  });
-  await FileSystem.writeAsStringAsync(
-    `${repoUri}${MANIFEST_FILE}`,
-    JSON.stringify(manifest),
-  );
-  await FileSystem.deleteAsync(zipUri, { idempotent: true }).catch(
-    () => undefined,
-  );
-  onProgress?.({ phase: "index", progress: 1, message: "Ready offline" });
-  clearRepositoryTreeCache(manifest.id);
+    onProgress?.({
+      phase: "index",
+      progress: 0.9,
+      message: "Saving local index",
+    });
+    await FileSystem.writeAsStringAsync(
+      `${stagingUri}${MANIFEST_FILE}`,
+      JSON.stringify(manifest),
+    );
 
-  return manifest;
+    const existing = await FileSystem.getInfoAsync(repoUri);
+    if (existing.exists) {
+      await FileSystem.moveAsync({ from: repoUri, to: backupUri });
+    }
+
+    try {
+      await FileSystem.moveAsync({ from: stagingUri, to: repoUri });
+    } catch (caught) {
+      const backup = await FileSystem.getInfoAsync(backupUri);
+      if (backup.exists) {
+        await FileSystem.moveAsync({ from: backupUri, to: repoUri });
+      }
+      throw caught;
+    }
+
+    await FileSystem.deleteAsync(backupUri, { idempotent: true }).catch(() => undefined);
+    onProgress?.({ phase: "index", progress: 1, message: "Ready offline" });
+    clearRepositoryTreeCache(manifest.id);
+    return manifest;
+  } finally {
+    await Promise.all([
+      FileSystem.deleteAsync(zipUri, { idempotent: true }).catch(() => undefined),
+      FileSystem.deleteAsync(stagingUri, { idempotent: true }).catch(() => undefined),
+    ]);
+  }
 }
 
 export async function deleteRepository(repository: SavedRepository) {

@@ -1,8 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   Switch,
@@ -24,10 +24,19 @@ import {
   APP_NAME,
   APP_VERSION,
   PRIVACY_POLICY_URL,
+  SUPPORT_EMAIL,
 } from "@/lib/app-info";
 import * as WebBrowser from "expo-web-browser";
-import { hasGitHubToken, setGitHubToken } from "@/lib/github";
+import { hasGitHubToken } from "@/lib/github";
+import {
+  removeGitHubToken,
+  saveGitHubToken,
+} from "@/lib/github-token";
 import { spacing, type AccentColor } from "@/lib/palette";
+import {
+  formatBytes,
+  listSavedRepositories,
+} from "@/lib/repository-storage";
 
 // ─── Theme / accent options ────────────────────────────────────────────────────
 
@@ -122,14 +131,26 @@ function TokenField({
   const [value, setValue] = useState("");
   const [saved, setSaved] = useState(hasGitHubToken());
   const [masked, setMasked] = useState(true);
+  const [busy, setBusy] = useState(false);
 
-  function handleSave() {
+  async function handleSave() {
     const trimmed = value.trim();
     if (!trimmed) return;
-    setGitHubToken(trimmed);
-    setSaved(true);
-    setEditing(false);
-    setValue("");
+
+    setBusy(true);
+    try {
+      await saveGitHubToken(trimmed);
+      setSaved(true);
+      setEditing(false);
+      setValue("");
+    } catch (caught) {
+      Alert.alert(
+        "Could not save token",
+        caught instanceof Error ? caught.message : "Secure storage failed.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   function handleRemove() {
@@ -141,11 +162,18 @@ function TokenField({
         {
           text: "Remove",
           style: "destructive",
-          onPress: () => {
-            setGitHubToken(null);
-            setSaved(false);
-            setEditing(false);
-            setValue("");
+          onPress: async () => {
+            try {
+              await removeGitHubToken();
+              setSaved(false);
+              setEditing(false);
+              setValue("");
+            } catch (caught) {
+              Alert.alert(
+                "Could not remove token",
+                caught instanceof Error ? caught.message : "Secure storage failed.",
+              );
+            }
           },
         },
       ],
@@ -215,9 +243,9 @@ function TokenField({
           <Text
             style={{ color: palette.accent, textDecorationLine: "underline" }}
             onPress={() =>
-              router.push(
-                "https://github.com/settings/tokens/new?scopes=public_repo&description=KodeView",
-              )
+              WebBrowser.openBrowserAsync(
+                "https://github.com/settings/tokens/new?description=KodeView",
+              ).catch(() => undefined)
             }
           >
             Personal Access Token
@@ -267,11 +295,11 @@ function TokenField({
 
       <View style={{ flexDirection: "row", gap: 8 }}>
         <Pressable
-          disabled={!value.trim()}
+          disabled={!value.trim() || busy}
           onPress={handleSave}
           style={{
             alignItems: "center",
-            backgroundColor: value.trim() ? palette.accent : palette.border,
+            backgroundColor: value.trim() && !busy ? palette.accent : palette.border,
             borderRadius: 8,
             flex: 1,
             paddingVertical: 9,
@@ -284,7 +312,7 @@ function TokenField({
               fontWeight: "700",
             }}
           >
-            Save token
+            {busy ? "Saving…" : "Save token"}
           </Text>
         </Pressable>
         {editing || saved ? (
@@ -435,17 +463,10 @@ function AccentSwatch({
       <View
         style={{
           backgroundColor: color,
+          boxShadow: selected ? `0 0 10px ${color}99` : undefined,
           borderRadius: 14,
           height: 28,
           width: 28,
-          ...(selected
-            ? {
-                shadowColor: color,
-                shadowOffset: { width: 0, height: 0 },
-                shadowOpacity: 0.6,
-                shadowRadius: 6,
-              }
-            : {}),
         }}
       />
       <Text
@@ -467,6 +488,18 @@ export default function SettingsScreen() {
   const palette = useAppPalette();
   const { appPreferences, preference, setAppPreference, setPreference } =
     useThemePreference();
+  const [storageSummary, setStorageSummary] = useState({ bytes: 0, repositories: 0 });
+
+  useEffect(() => {
+    listSavedRepositories()
+      .then((repositories) =>
+        setStorageSummary({
+          bytes: repositories.reduce((total, repository) => total + repository.sizeBytes, 0),
+          repositories: repositories.length,
+        }),
+      )
+      .catch(() => undefined);
+  }, []);
 
   return (
     <ScrollView
@@ -520,6 +553,45 @@ export default function SettingsScreen() {
             value={appPreferences.autoSync}
           />
         </SettingRow>
+      </Section>
+
+      <Section palette={palette} title="Offline storage">
+        <View style={{ flexDirection: "row", gap: spacing.sm, padding: spacing.md }}>
+          <View
+            style={{
+              backgroundColor: palette.background,
+              borderColor: palette.border,
+              borderCurve: "continuous",
+              borderRadius: 10,
+              borderWidth: 1,
+              flex: 1,
+              gap: 3,
+              padding: spacing.md,
+            }}
+          >
+            <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>REPOSITORIES</Text>
+            <Text selectable style={{ color: palette.text, fontSize: 20, fontVariant: ["tabular-nums"], fontWeight: "900" }}>
+              {storageSummary.repositories}
+            </Text>
+          </View>
+          <View
+            style={{
+              backgroundColor: palette.background,
+              borderColor: palette.border,
+              borderCurve: "continuous",
+              borderRadius: 10,
+              borderWidth: 1,
+              flex: 1,
+              gap: 3,
+              padding: spacing.md,
+            }}
+          >
+            <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>ON DEVICE</Text>
+            <Text selectable style={{ color: palette.text, fontSize: 20, fontVariant: ["tabular-nums"], fontWeight: "900" }}>
+              {formatBytes(storageSummary.bytes)}
+            </Text>
+          </View>
+        </View>
       </Section>
 
       {/* ── Appearance ────────────────────────────────────────────────────── */}
@@ -728,31 +800,46 @@ export default function SettingsScreen() {
           >
             Not affiliated with GitHub, Inc.
           </Text>
-          <Pressable
-            onPress={() =>
-              WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL).catch(
-                () => undefined,
-              )
-            }
-            style={({ pressed }) => ({
-              borderColor: palette.border,
-              borderRadius: 8,
-              borderWidth: 1,
-              opacity: pressed ? 0.7 : 1,
-              paddingHorizontal: 16,
-              paddingVertical: 10,
-            })}
-          >
-            <Text
-              style={{
-                color: palette.accent,
-                fontSize: 13,
-                fontWeight: "600",
-              }}
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <Pressable
+              onPress={() =>
+                WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL).catch(
+                  () => undefined,
+                )
+              }
+              style={({ pressed }) => ({
+                borderColor: palette.border,
+                borderRadius: 8,
+                borderWidth: 1,
+                opacity: pressed ? 0.7 : 1,
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+              })}
             >
-              Privacy Policy
-            </Text>
-          </Pressable>
+              <Text style={{ color: palette.accent, fontSize: 13, fontWeight: "600" }}>
+                Privacy Policy
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() =>
+                Linking.openURL(
+                  `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`${APP_NAME} support`)}`,
+                ).catch(() => undefined)
+              }
+              style={({ pressed }) => ({
+                borderColor: palette.border,
+                borderRadius: 8,
+                borderWidth: 1,
+                opacity: pressed ? 0.7 : 1,
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+              })}
+            >
+              <Text style={{ color: palette.accent, fontSize: 13, fontWeight: "600" }}>
+                Contact Support
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </Section>
     </ScrollView>

@@ -30,8 +30,11 @@ import { spacing } from "@/lib/palette";
 import {
   formatBytes,
   importRepository,
+  MAX_IMPORT_SIZE_BYTES,
   type ImportProgress,
 } from "@/lib/repository-storage";
+
+const USE_NATIVE_DRIVER = process.env.EXPO_OS !== "web";
 
 // ─── Language colour map ───────────────────────────────────────────────────────
 
@@ -164,13 +167,13 @@ function SkeletonCard({
           duration: 850,
           delay,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
         Animated.timing(shimmer, {
           toValue: 0,
           duration: 850,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
       ]),
     ).start();
@@ -267,6 +270,7 @@ const ResultCard = memo(function ResultCard({
 }) {
   const palette = useAppPalette();
   const busy = cloning === repository.fullName;
+  const tooLarge = sizeBytes != null && sizeBytes > MAX_IMPORT_SIZE_BYTES;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(10)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -278,14 +282,14 @@ const ResultCard = memo(function ResultCard({
         duration: 260,
         delay: Math.min(index * 35, 350),
         easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 260,
         delay: Math.min(index * 35, 350),
         easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
     ]).start();
   }, [fadeAnim, slideAnim, index]);
@@ -293,7 +297,7 @@ const ResultCard = memo(function ResultCard({
   function handlePressIn() {
     Animated.spring(scaleAnim, {
       toValue: 0.975,
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
       speed: 40,
       bounciness: 2,
     }).start();
@@ -302,7 +306,7 @@ const ResultCard = memo(function ResultCard({
   function handlePressOut() {
     Animated.spring(scaleAnim, {
       toValue: 1,
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
       speed: 40,
       bounciness: 2,
     }).start();
@@ -316,8 +320,20 @@ const ResultCard = memo(function ResultCard({
       }}
     >
       <Pressable
+        accessibilityHint={
+          tooLarge
+            ? `This repository exceeds the ${formatBytes(MAX_IMPORT_SIZE_BYTES)} mobile import limit.`
+            : "Downloads this repository for offline reading."
+        }
+        accessibilityLabel={`Download ${repository.fullName}`}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: Boolean(cloning) || tooLarge }}
         disabled={Boolean(cloning)}
-        onPress={() => onClone(repository.fullName)}
+        onPress={() => {
+          if (!tooLarge) {
+            onClone(repository.fullName);
+          }
+        }}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         style={{
@@ -362,7 +378,8 @@ const ResultCard = memo(function ResultCard({
                 style={{ flexDirection: "row", gap: 8, alignItems: "center" }}
               >
                 <Pressable
-                  disabled={Boolean(cloning)}
+                  accessibilityLabel={`Download ${repository.fullName}`}
+                  disabled={Boolean(cloning) || tooLarge}
                   hitSlop={8}
                   onPress={() => onClone(repository.fullName)}
                 >
@@ -370,8 +387,8 @@ const ResultCard = memo(function ResultCard({
                     <ActivityIndicator color={palette.accent} size="small" />
                   ) : (
                     <MaterialIcons
-                      color={cloning ? palette.muted : palette.accent}
-                      name="download"
+                      color={cloning || tooLarge ? palette.muted : palette.accent}
+                      name={tooLarge ? "block" : "download"}
                       size={18}
                     />
                   )}
@@ -472,8 +489,9 @@ const ResultCard = memo(function ResultCard({
         ) : null}
         {sizeBytes != null ? (
           <View style={{ marginTop: 10 }}>
-            <Text style={{ color: palette.muted, fontSize: 11 }}>
+            <Text style={{ color: tooLarge ? palette.danger : palette.muted, fontSize: 11 }}>
               {formatBytes(sizeBytes)}
+              {tooLarge ? ` · over ${formatBytes(MAX_IMPORT_SIZE_BYTES)} mobile limit` : ""}
             </Text>
           </View>
         ) : null}

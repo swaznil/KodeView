@@ -21,6 +21,7 @@ export type AppPreferences = {
 type ThemePreferenceContextValue = {
   appPreferences: AppPreferences;
   colorScheme: 'light' | 'dark';
+  isReady: boolean;
   preference: ThemePreference;
   setAppPreference: <Key extends keyof AppPreferences>(key: Key, value: AppPreferences[Key]) => void;
   setPreference: (preference: ThemePreference) => void;
@@ -67,23 +68,22 @@ export function ThemePreferenceProvider({ children }: PropsWithChildren) {
   const systemScheme = useColorScheme();
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
   const [appPreferences, setAppPreferences] = useState<AppPreferences>(defaultAppPreferences);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((stored) => {
+    Promise.all([AsyncStorage.getItem(STORAGE_KEY), AsyncStorage.getItem(APP_STORAGE_KEY)])
+      .then(([storedTheme, storedPreferences]) => {
+        const stored = storedTheme;
         if (stored === 'system' || stored === 'light' || stored === 'dark') {
           setPreferenceState(stored);
         }
-      })
-      .catch(() => undefined);
 
-    AsyncStorage.getItem(APP_STORAGE_KEY)
-      .then((stored) => {
-        if (stored) {
-          setAppPreferences(normalizePreferences(JSON.parse(stored)));
+        if (storedPreferences) {
+          setAppPreferences(normalizePreferences(JSON.parse(storedPreferences)));
         }
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => setIsReady(true));
   }, []);
 
   const setPreference = (nextPreference: ThemePreference) => {
@@ -102,8 +102,8 @@ export function ThemePreferenceProvider({ children }: PropsWithChildren) {
   };
 
   const value = useMemo(
-    () => ({ appPreferences, colorScheme, preference, setAppPreference, setPreference }),
-    [appPreferences, colorScheme, preference]
+    () => ({ appPreferences, colorScheme, isReady, preference, setAppPreference, setPreference }),
+    [appPreferences, colorScheme, isReady, preference]
   );
 
   return <ThemePreferenceContext.Provider value={value}>{children}</ThemePreferenceContext.Provider>;

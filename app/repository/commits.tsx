@@ -1,9 +1,9 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
+import { FlatList, Pressable, Text, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 
-import { InlineError } from '@/components/app/shared';
+import { InlineError, LoadingState } from '@/components/app/shared';
 import { useAppPalette } from '@/hooks/use-theme-preference';
 import { fetchRepositoryCommits, type GitHubCommit } from '@/lib/github';
 import { spacing } from '@/lib/palette';
@@ -27,9 +27,11 @@ export default function CommitsScreen() {
   const [commits, setCommits] = useState<GitHubCommit[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
 
     (async () => {
       setBusy(true);
@@ -46,9 +48,9 @@ export default function CommitsScreen() {
         }
 
         setRepository(found);
-        setCommits(await fetchRepositoryCommits(found.owner, found.repo, found.defaultBranch));
+        setCommits(await fetchRepositoryCommits(found.owner, found.repo, found.defaultBranch, controller.signal));
       } catch (caught) {
-        if (active) {
+        if (active && !controller.signal.aborted) {
           setError(caught instanceof Error ? caught.message : 'Could not load commits.');
         }
       } finally {
@@ -60,20 +62,27 @@ export default function CommitsScreen() {
 
     return () => {
       active = false;
+      controller.abort();
     };
-  }, [id]);
+  }, [id, reloadKey]);
 
   return (
     <View style={{ backgroundColor: palette.background, flex: 1 }}>
       <Stack.Screen options={{ title: repository ? `Commits · ${repository.repo}` : 'Commits' }} />
       {busy ? (
-        <ActivityIndicator color={palette.accent} style={{ marginTop: 32 }} />
+        <LoadingState detail="Fetching the latest commit history from GitHub" palette={palette} title="Loading commits" />
       ) : error ? (
         <View style={{ padding: spacing.lg }}>
-          <InlineError message={error} palette={palette} />
+          <InlineError
+            actionLabel="Retry"
+            message={error}
+            onAction={() => setReloadKey((value) => value + 1)}
+            palette={palette}
+          />
         </View>
       ) : (
         <FlatList
+          contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{ gap: 10, padding: 16, paddingBottom: 32 }}
           data={commits}
           initialNumToRender={16}
@@ -95,11 +104,11 @@ export default function CommitsScreen() {
                 gap: 6,
                 padding: 12,
               })}>
-              <Text style={{ color: palette.accent, fontFamily: 'monospace', fontSize: 12, fontWeight: '700' }}>
+              <Text selectable style={{ color: palette.accent, fontFamily: 'monospace', fontSize: 12, fontWeight: '700' }}>
                 {item.sha}
               </Text>
-              <Text style={{ color: palette.text, fontSize: 14, fontWeight: '700' }}>{item.message}</Text>
-              <Text style={{ color: palette.muted, fontSize: 12 }}>
+              <Text selectable style={{ color: palette.text, fontSize: 14, fontWeight: '700' }}>{item.message}</Text>
+              <Text selectable style={{ color: palette.muted, fontSize: 12 }}>
                 {item.author ?? 'Unknown author'} · {formatWhen(item.date)}
               </Text>
             </Pressable>

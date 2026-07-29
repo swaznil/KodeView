@@ -3,7 +3,7 @@
     "name": "KodeView",
     "slug": "kodeview",
     "version": "1.0.0",
-    "description": "A lightweight offline code viewer for public GitHub repositories.",
+    "description": "A fast, private, offline code reader for public GitHub repositories.",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "kodeview",
@@ -11,17 +11,19 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.swaznil.kodeview"
+      "bundleIdentifier": "com.swaznil.kodeview",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#181817",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundImage": "./assets/images/android-icon-background.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
+      "predictiveBackGestureEnabled": true,
       "package": "com.swaznil.kodeview"
     },
     "web": {
@@ -33,16 +35,17 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/icon.png",
-          "imageWidth": 180,
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 240,
           "resizeMode": "contain",
           "backgroundColor": "#0d1117",
           "dark": {
-            "image": "./assets/images/icon.png",
+            "image": "./assets/images/splash-icon.png",
             "backgroundColor": "#0d1117"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

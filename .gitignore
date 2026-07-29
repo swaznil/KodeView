@@ -26,6 +26,7 @@ temp/
 dist/
 build/
 web-build/
+/release/
 
 # OS files
 .DS_Store

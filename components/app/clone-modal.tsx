@@ -1,10 +1,11 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as Clipboard from "expo-clipboard";
+import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   Text,
   TextInput,
@@ -13,10 +14,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { InlineError, ProgressBar } from "@/components/app/shared";
-import { resolveGitHubRepository } from "@/lib/github";
+import { parseGitHubRepository, resolveGitHubRepository } from "@/lib/github";
 import { spacing, type Palette } from "@/lib/palette";
 import {
   importRepository,
+  formatBytes,
   type ImportProgress,
 } from "@/lib/repository-storage";
 
@@ -49,6 +51,12 @@ export function CloneModal({
   }, [visible]);
 
   async function cloneRepository(value = input) {
+    if (!parseGitHubRepository(value)) {
+      setError("Enter a valid public GitHub URL or owner/repo.");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setProgress(null);
@@ -56,9 +64,11 @@ export function CloneModal({
     try {
       const details = await resolveGitHubRepository(value);
       const saved = await importRepository(details, setProgress);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
       onClose();
       onCloned(saved.id);
     } catch (caught) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => undefined);
       setError(
         caught instanceof Error
           ? caught.message
@@ -78,7 +88,7 @@ export function CloneModal({
       visible={visible}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
         style={{ flex: 1, justifyContent: "flex-end" }}
       >
         <Pressable
@@ -183,11 +193,37 @@ export function CloneModal({
               value={input}
             />
             <Pressable
+              accessibilityLabel="Paste repository URL"
               disabled={busy}
+              onPress={async () => {
+                const value = await Clipboard.getStringAsync();
+                if (value.trim()) {
+                  setInput(value.trim());
+                  setError(null);
+                  Haptics.selectionAsync().catch(() => undefined);
+                }
+              }}
+              style={({ pressed }) => ({
+                alignItems: "center",
+                backgroundColor: pressed ? palette.secondary : palette.fill,
+                borderColor: palette.border,
+                borderCurve: "continuous",
+                borderRadius: 8,
+                borderWidth: 1,
+                justifyContent: "center",
+                minHeight: 46,
+                width: 46,
+              })}
+            >
+              <MaterialIcons color={palette.text} name="content-paste" size={20} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Download repository"
+              disabled={busy || !input.trim()}
               onPress={() => cloneRepository()}
               style={({ pressed }) => ({
                 alignItems: "center",
-                backgroundColor: busy ? palette.secondary : palette.primary,
+                backgroundColor: busy || !input.trim() ? palette.secondary : palette.primary,
                 borderRadius: 8,
                 justifyContent: "center",
                 minHeight: 46,
@@ -220,6 +256,9 @@ export function CloneModal({
                   {progress.message}
                 </Text>
                 <Text style={{ color: palette.muted, fontSize: 12 }}>
+                  {progress.downloadedBytes
+                    ? `${formatBytes(progress.downloadedBytes)} · `
+                    : ""}
                   {Math.round(progress.progress * 100)}%
                 </Text>
               </View>

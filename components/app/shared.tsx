@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { memo, type ComponentProps, type ReactNode } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View, useWindowDimensions } from 'react-native';
 
 import { AppLogo } from '@/components/app/app-logo';
 import { radius, spacing, type Palette } from '@/lib/palette';
@@ -79,16 +79,26 @@ export function AppHeader({
   title: string;
   trailing?: ReactNode;
 }) {
+  const { width } = useWindowDimensions();
+  const useCompactActions = Boolean(trailing) && width < 500;
+
   return (
-    <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-      <AppLogo size={38} />
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: palette.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.3 }}>
-          {title}
-        </Text>
-        <Text style={{ color: palette.muted, fontSize: 13 }}>{subtitle}</Text>
+    <View style={{ gap: useCompactActions ? spacing.md : 0 }}>
+      <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+        <AppLogo size={38} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: palette.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.3 }}>
+            {title}
+          </Text>
+          <Text style={{ color: palette.muted, fontSize: 13 }}>{subtitle}</Text>
+        </View>
+        {useCompactActions ? null : trailing}
       </View>
-      {trailing}
+      {useCompactActions ? (
+        <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'flex-end' }}>
+          {trailing}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -108,6 +118,7 @@ export function Panel({
         backgroundColor: palette.fill,
         borderColor: palette.border,
         borderRadius: radius.sm,
+        borderCurve: 'continuous',
         borderWidth: 1,
         gap: spacing.md,
         padding: spacing.md,
@@ -138,19 +149,31 @@ export function HeaderIconButton({
         backgroundColor: pressed ? palette.secondary : palette.fill,
         borderColor: palette.border,
         borderRadius: radius.sm,
+        borderCurve: 'continuous',
         borderWidth: 1,
-        height: 38,
+        height: 44,
         justifyContent: 'center',
-        width: 38,
+        width: 44,
       })}>
       <MaterialIcons color={palette.text} name={icon} size={20} />
     </Pressable>
   );
 }
 
-export function InlineError({ message, palette }: { message: string; palette: Palette }) {
+export function InlineError({
+  actionLabel,
+  message,
+  onAction,
+  palette,
+}: {
+  actionLabel?: string;
+  message: string;
+  onAction?: () => void;
+  palette: Palette;
+}) {
   return (
     <View
+      accessibilityRole="alert"
       style={{
         alignItems: 'center',
         backgroundColor: `${palette.danger}14`,
@@ -162,7 +185,71 @@ export function InlineError({ message, palette }: { message: string; palette: Pa
         padding: spacing.md,
       }}>
       <MaterialIcons color={palette.danger} name="error-outline" size={18} />
-      <Text style={{ color: palette.danger, flex: 1, fontSize: 13, fontWeight: '700' }}>{message}</Text>
+      <Text selectable style={{ color: palette.danger, flex: 1, fontSize: 13, fontWeight: '700' }}>
+        {message}
+      </Text>
+      {onAction && actionLabel ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onAction}
+          style={({ pressed }) => ({
+            backgroundColor: pressed ? `${palette.danger}22` : 'transparent',
+            borderColor: `${palette.danger}66`,
+            borderRadius: radius.sm,
+            borderWidth: 1,
+            paddingHorizontal: 10,
+            paddingVertical: 7,
+          })}>
+          <Text style={{ color: palette.danger, fontSize: 12, fontWeight: '800' }}>{actionLabel}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+export function LoadingState({
+  detail,
+  palette,
+  title = 'Loading',
+}: {
+  detail?: string;
+  palette: Palette;
+  title?: string;
+}) {
+  return (
+    <View
+      accessibilityLabel={`${title}${detail ? `. ${detail}` : ''}`}
+      accessibilityRole="progressbar"
+      style={{
+        alignItems: 'center',
+        flex: 1,
+        gap: spacing.md,
+        justifyContent: 'center',
+        minHeight: 220,
+        padding: spacing.xxl,
+      }}>
+      <View
+        style={{
+          alignItems: 'center',
+          backgroundColor: palette.accentSoft,
+          borderColor: `${palette.accent}44`,
+          borderCurve: 'continuous',
+          borderRadius: radius.lg,
+          borderWidth: 1,
+          height: 56,
+          justifyContent: 'center',
+          width: 56,
+        }}>
+        <ActivityIndicator color={palette.accent} />
+      </View>
+      <View style={{ alignItems: 'center', gap: spacing.xs }}>
+        <Text style={{ color: palette.text, fontSize: 15, fontWeight: '800' }}>{title}</Text>
+        {detail ? (
+          <Text style={{ color: palette.muted, fontSize: 12, lineHeight: 18, textAlign: 'center' }}>
+            {detail}
+          </Text>
+        ) : null}
+      </View>
     </View>
   );
 }
