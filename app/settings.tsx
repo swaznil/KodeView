@@ -12,7 +12,6 @@ import {
 } from "react-native";
 
 import { AppLogo } from "@/components/app/app-logo";
-import { AppHeader } from "@/components/app/shared";
 import { Chip, Section, SettingRow } from "@/components/ui/primitives";
 import {
   useAppPalette,
@@ -156,7 +155,7 @@ function TokenField({
   function handleRemove() {
     Alert.alert(
       "Remove token",
-      "This will remove the saved GitHub token. Requests will fall back to the unauthenticated limit (10/min).",
+      "This will remove the saved GitHub token. Search will return to GitHub's unauthenticated limit of 10 requests per minute.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -203,7 +202,7 @@ function TokenField({
               Token saved
             </Text>
             <Text style={{ color: palette.muted, fontSize: 11 }}>
-              5,000 requests/hr · Authenticated
+              5,000 requests per hour · Authenticated
             </Text>
           </View>
           <Pressable
@@ -250,8 +249,8 @@ function TokenField({
           >
             Personal Access Token
           </Text>{" "}
-          (no scopes needed for public repos) raises the search limit from
-          10/min to 5,000/hr.
+          (no scopes needed for public repos) raises the search limit from 10
+          requests per minute to 5,000 requests per hour.
         </Text>
       ) : null}
 
@@ -512,19 +511,13 @@ export default function SettingsScreen() {
         paddingBottom: 40,
       }}
     >
-      <AppHeader
-        palette={palette}
-        subtitle="Appearance, API access, and reader defaults."
-        title="Settings"
-      />
-
       {/* ── GitHub API ────────────────────────────────────────────────────── */}
       <Section palette={palette} title="GitHub API">
         <InfoCallout
           icon="info-outline"
           palette={palette}
           title="Rate limits"
-          text="Unauthenticated searches are capped at 10 requests/min. A Personal Access Token raises this to 5,000/hr and makes Discover much more reliable."
+          text="Without a token, GitHub allows 10 search requests per minute. A Personal Access Token raises this to 5,000 requests per hour and makes Discover much more reliable."
           variant="warning"
         />
         <SectionDivider palette={palette} />
@@ -537,7 +530,7 @@ export default function SettingsScreen() {
           icon="cloud-download"
           palette={palette}
           title="Large repositories"
-          text="Cloning downloads a ZIP from GitHub and extracts every file on-device. Large repos can take several minutes on slow connections. Keep the app open until the progress bar completes."
+          text="Projects up to 300 MB can be downloaded as a ZIP and extracted on-device. Large projects need extra free space and can take several minutes, so keep the app open until the progress bar completes."
         />
         <SectionDivider palette={palette} />
         <SettingRow

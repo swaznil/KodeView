@@ -16,7 +16,7 @@ KodeView is deliberately a reader, not a pocket-sized Git client. It does not ed
 - Follow your system theme, or stay in light or dark mode
 - Show local storage usage and work offline after a repository is downloaded
 
-Public repositories reported by GitHub as larger than 100 MB are not imported. This keeps extraction reliable on phones with limited memory and storage.
+Public repositories reported by GitHub as larger than 300 MB are not imported. Large projects can take time and require considerably more free space while they are extracted.
 
 ## Run it locally
 

@@ -1,9 +1,10 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  BackHandler,
   Easing,
   Linking,
   Pressable,
@@ -14,7 +15,7 @@ import {
   View,
 } from "react-native";
 
-import { AppHeader, InlineError } from "@/components/app/shared";
+import { InlineError } from "@/components/app/shared";
 import { OwnerAvatar } from "@/components/repository/owner-avatar";
 import { useAppPalette } from "@/hooks/use-theme-preference";
 import {
@@ -128,15 +129,15 @@ function RateLimitBanner({
       </View>
       {!isAuthenticated ? (
         <Text style={{ color: palette.muted, fontSize: 12, lineHeight: 17 }}>
-          Unauthenticated requests are limited to 10/min. Add a GitHub Personal
-          Access Token in{" "}
+          GitHub allows 10 unauthenticated search requests per minute. Add a
+          Personal Access Token in{" "}
           <Text
             style={{ color: palette.accent, textDecorationLine: "underline" }}
             onPress={() => router.push("/settings")}
           >
             Settings
           </Text>{" "}
-          to raise the limit to 5,000/hr.
+          to raise the limit to 5,000 requests per hour.
         </Text>
       ) : (
         <Text style={{ color: palette.muted, fontSize: 12 }}>
@@ -642,8 +643,8 @@ function TokenPromptBanner({
           Add a GitHub token for better results
         </Text>
         <Text style={{ color: palette.muted, fontSize: 11, marginTop: 1 }}>
-          Unauthenticated searches are limited to 10/min. Tap to add a PAT in
-          Settings.
+          Without a token, GitHub allows 10 search requests per minute. Tap to
+          add a PAT in Settings.
         </Text>
       </View>
       <MaterialIcons color={palette.muted} name="chevron-right" size={18} />
@@ -678,6 +679,31 @@ export default function DiscoverScreen() {
 
   const searchAbortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<TextInput>(null);
+
+  const clearSearch = useCallback(() => {
+    searchAbortRef.current?.abort();
+    setQuery("");
+    setMode("browse");
+    setSearchResults([]);
+    setRateLimitInfo(null);
+    setError(null);
+    setSearching(false);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+        if (!query) {
+          return false;
+        }
+        clearSearch();
+        inputRef.current?.blur();
+        return true;
+      });
+
+      return () => subscription.remove();
+    }, [clearSearch, query]),
+  );
 
   // ── Load trending ────────────────────────────────────────────────────────────
 
@@ -782,7 +808,7 @@ export default function DiscoverScreen() {
       );
 
       setRepoSizes((s) => ({ ...s, [fullName]: saved.sizeBytes }));
-      router.replace({
+      router.push({
         pathname: "/repository/[id]",
         params: { id: saved.id },
       });
@@ -841,13 +867,6 @@ export default function DiscoverScreen() {
         paddingBottom: 48,
       }}
     >
-      {/* Header */}
-      <AppHeader
-        palette={palette}
-        subtitle="Browse trending repositories or search GitHub to save for offline reading."
-        title="Discover"
-      />
-
       {/* Token prompt (only shown when no token is set and user hasn't searched) */}
       {mode === "browse" ? <TokenPromptBanner palette={palette} /> : null}
 
@@ -891,13 +910,7 @@ export default function DiscoverScreen() {
         ) : query.length > 0 ? (
           <Pressable
             hitSlop={10}
-            onPress={() => {
-              setQuery("");
-              setMode("browse");
-              setSearchResults([]);
-              setRateLimitInfo(null);
-              setError(null);
-            }}
+            onPress={clearSearch}
           >
             <MaterialIcons color={palette.muted} name="close" size={18} />
           </Pressable>

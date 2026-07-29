@@ -477,13 +477,40 @@ export async function searchGitHubRepositories(
 ): Promise<GitHubRepositorySearchResult[]> {
   const normalized = query.trim().replace(/[:"']/g, "").replace(/\s+/g, " ");
   if (normalized.length < 2) return [];
-  return searchRaw(
+  const repositories = await searchRaw(
     normalized,
     options.sort === "best-match" ? undefined : options.sort,
     {
       signal: options.signal,
     },
   );
+
+  const ownerNeedle = normalized.toLowerCase();
+  const hasOwnerMatch = repositories.some((repository) =>
+    repository.owner.toLowerCase().includes(ownerNeedle),
+  );
+  const canBeGitHubLogin = /^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?$/i.test(
+    normalized,
+  );
+
+  if (hasOwnerMatch || !canBeGitHubLogin) {
+    return repositories;
+  }
+
+  try {
+    const ownerRepositories = await searchRaw(`user:${normalized}`, undefined, {
+      signal: options.signal,
+    });
+    return uniqueRepositories([...ownerRepositories, ...repositories]);
+  } catch (caught) {
+    if ((caught as Error)?.name === "AbortError") {
+      throw caught;
+    }
+
+    // Preserve repository-name results when the account lookup is unavailable
+    // or the query is not an exact GitHub login.
+    return repositories;
+  }
 }
 
 export async function fetchTrendingRepositories(

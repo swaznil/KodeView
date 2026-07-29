@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,15 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CloneModal } from '@/components/app/clone-modal';
-import {
-  AppHeader,
-  HeaderIconButton,
-  InlineError,
-  LoadingState,
-  Panel,
-  Pill,
-  ProgressBar,
-} from '@/components/app/shared';
+import { HeaderIconButton, InlineError, LoadingState, Panel, Pill, ProgressBar } from '@/components/app/shared';
 import { RepositoryMenu } from '@/components/repository/repository-menu';
 import { RepositoryRow } from '@/components/repository/repository-row';
 import { useAppPalette, useThemePreference } from '@/hooks/use-theme-preference';
@@ -112,19 +105,41 @@ export default function HomeScreen() {
     }, [appPreferences.autoSync, refresh])
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (cloneVisible) {
+          setCloneVisible(false);
+          return true;
+        }
+        if (menuRepository) {
+          setMenuRepository(null);
+          return true;
+        }
+        if (query) {
+          setQuery('');
+          return true;
+        }
+        return false;
+      });
+
+      return () => subscription.remove();
+    }, [cloneVisible, menuRepository, query])
+  );
+
   const visibleRepositories = useMemo(
     () => filterAndSortRepositories(repositories, { pinnedIds, query, sort }),
     [pinnedIds, query, repositories, sort]
   );
 
   const repoCount = repositories.length;
-  const subtitle = useMemo(
+  const librarySummary = useMemo(
     () =>
       repoCount === 0
         ? initialLoading
-          ? 'Loading your offline library…'
-          : 'Clone public GitHub repositories for offline reading.'
-        : `${repoCount} local ${repoCount === 1 ? 'repository' : 'repositories'}${syncing ? ' · syncing…' : ''}`,
+          ? 'Loading your offline library...'
+          : 'Save a public GitHub project to start reading offline.'
+        : `${repoCount} saved offline${syncing ? ' · syncing...' : ''}`,
     [initialLoading, repoCount, syncing]
   );
 
@@ -199,18 +214,31 @@ export default function HomeScreen() {
           paddingBottom: 32,
           paddingTop: Math.max(16, insets.top + 8),
         }}>
-        <AppHeader
-          palette={palette}
-          subtitle={subtitle}
-          title="Repositories"
-          trailing={
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <HeaderIconButton icon="add" label="Clone repository" onPress={() => setCloneVisible(true)} palette={palette} />
-              <HeaderIconButton icon="search" label="Discover" onPress={() => router.push('/discover')} palette={palette} />
-              <HeaderIconButton icon="settings" label="Settings" onPress={() => router.push('/settings')} palette={palette} />
-            </View>
-          }
-        />
+        <View style={{ gap: 12 }}>
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+            <HeaderIconButton
+              icon="settings"
+              label="Settings"
+              onPress={() => router.push('/settings')}
+              palette={palette}
+            />
+            <HeaderIconButton
+              icon="search"
+              label="Search GitHub"
+              onPress={() => router.push('/discover')}
+              palette={palette}
+            />
+            <HeaderIconButton
+              icon="add"
+              label="Add repository"
+              onPress={() => setCloneVisible(true)}
+              palette={palette}
+            />
+          </View>
+          <Text style={{ color: palette.muted, fontSize: 13, lineHeight: 19 }}>
+            {librarySummary}
+          </Text>
+        </View>
 
         {syncProgress ? (
           <Panel palette={palette}>
@@ -233,7 +261,7 @@ export default function HomeScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               onChangeText={setQuery}
-              placeholder="Search local repositories"
+              placeholder="Search saved projects by name or owner"
               placeholderTextColor={palette.muted}
               style={{
                 backgroundColor: palette.fill,
@@ -267,11 +295,13 @@ export default function HomeScreen() {
         <View style={{ gap: 10 }}>
           <View style={{ alignItems: 'center', flexDirection: 'row', gap: 8 }}>
             <Text style={{ color: palette.text, flex: 1, fontSize: 18, fontWeight: '800' }}>
-              Local repositories
+              Offline library
             </Text>
-            <Pill icon="save" palette={palette}>
-              {visibleRepositories.length.toString()}
-            </Pill>
+            {repoCount > 0 ? (
+              <Pill icon="save" palette={palette}>
+                {visibleRepositories.length.toString()}
+              </Pill>
+            ) : null}
           </View>
 
           {initialLoading ? (
@@ -281,7 +311,7 @@ export default function HomeScreen() {
               <MaterialIcons color={palette.muted} name="inventory-2" size={26} />
               <Text style={{ color: palette.text, fontSize: 16, fontWeight: '800' }}>No repositories saved yet</Text>
               <Text style={{ color: palette.muted, fontSize: 13, lineHeight: 19 }}>
-                Tap Clone to add a GitHub URL, or browse trending repos in Discover.
+                Use the plus button to add a GitHub URL, or search GitHub with the magnifying glass.
               </Text>
               <Pressable
                 onPress={() => setCloneVisible(true)}
@@ -293,7 +323,7 @@ export default function HomeScreen() {
                   paddingHorizontal: 14,
                   paddingVertical: 10,
                 })}>
-                <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '700' }}>Clone repository</Text>
+                <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '700' }}>Add from GitHub</Text>
               </Pressable>
             </Panel>
           ) : visibleRepositories.length === 0 ? (
